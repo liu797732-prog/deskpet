@@ -20,12 +20,13 @@ const manualStatus = ref(false) // 用户手动开关
 
 // 低状态时自动显示独立状态栏窗口
 setInterval(() => {
-  if (manualStatus.value) return // 用户手动开启就不自动关
-
-  const low = petStats.hunger < 20 || petStats.mood < 20 || petStats.clean < 20
-  if (low !== showStatus.value) {
-    showStatus.value = low
-    ;(window as any).petAPI?.toggleStatus(low)
+  // 自动显示/隐藏（用户手动开启后不自动关）
+  if (!manualStatus.value) {
+    const low = petStats.hunger < 20 || petStats.mood < 20 || petStats.clean < 20
+    if (low !== showStatus.value) {
+      showStatus.value = low
+      ;(window as any).petAPI?.toggleStatus(low)
+    }
   }
   // 同步数值到状态栏窗口
   if (showStatus.value) {

@@ -3,7 +3,6 @@
     ref="containerRef"
     class="pet-canvas"
     @mousedown="onMouseDown"
-    @mousemove="onMouseMove"
     @mouseup="onMouseUp"
   >
     <div v-if="errorMsg" class="error-overlay">{{ errorMsg }}</div>
@@ -26,31 +25,21 @@ let model: Live2DModel | null = null
 
 // 拖拽/点击区分
 let isDragging = false
-let dragStartX = 0
-let dragStartY = 0
+let movedDistance = 0
 let offsetX = 0
 let offsetY = 0
-let movedDistance = 0
-const CLICK_THRESHOLD = 5 // 移动超过5像素算拖拽
+let lastDragX = 0
+let lastDragY = 0
+const CLICK_THRESHOLD = 5
 
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
   isDragging = true
   movedDistance = 0
-  dragStartX = e.screenX
-  dragStartY = e.screenY
   offsetX = e.clientX
   offsetY = e.clientY
-}
-
-function onMouseMove(e: MouseEvent) {
-  if (!isDragging) return
-  const dx = e.screenX - dragStartX
-  const dy = e.screenY - dragStartY
-  movedDistance = Math.max(movedDistance, Math.abs(dx) + Math.abs(dy))
-  if (movedDistance > CLICK_THRESHOLD) {
-    ;(window as any).petAPI?.dragMoveTo(e.screenX - offsetX, e.screenY - offsetY)
-  }
+  lastDragX = e.screenX
+  lastDragY = e.screenY
 }
 
 function onMouseUp(e: MouseEvent) {
@@ -61,8 +50,6 @@ function onMouseUp(e: MouseEvent) {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // 模型区域：从 model.y 到 model.y + model.height
-    // 上半部分算头，下半部分算身体
     const modelTop = model.y
     const modelHeight = model.height
     const headLine = modelTop + modelHeight * 0.4
@@ -80,6 +67,9 @@ function onMouseUp(e: MouseEvent) {
 onMounted(async () => {
   if (!containerRef.value) return
 
+  // 全局监听 mouseup，鼠标划出窗口也能结束拖拽
+  document.addEventListener('mouseup', onMouseUp)
+
   try {
     app = new PIXI.Application({
       width: 110,
@@ -91,7 +81,7 @@ onMounted(async () => {
     })
 
     containerRef.value.appendChild(app.view as HTMLCanvasElement)
-    model = await Live2DModel.from('/models/knight/Knight/knight.model3.json')
+    model = await Live2DModel.from('models/knight/Knight/knight.model3.json')
 
     const scale = Math.max(
       app.screen.width / model.width,
@@ -105,9 +95,21 @@ onMounted(async () => {
 
     // 监听主进程推送的全局鼠标位置
     ;(window as any).petAPI?.onCursorPos((pos: { x: number; y: number }) => {
+      // 拖拽中：用全局鼠标位置移动窗口
+      if (isDragging) {
+        const dx = pos.x - lastDragX
+        const dy = pos.y - lastDragY
+        movedDistance = Math.max(movedDistance, Math.abs(dx) + Math.abs(dy))
+        if (movedDistance > CLICK_THRESHOLD) {
+          ;(window as any).petAPI?.dragMoveTo(pos.x - offsetX, pos.y - offsetY)
+        }
+        lastDragX = pos.x
+        lastDragY = pos.y
+        return
+      }
+      // 眼睛跟随
       if (!model || !app) return
       const rect = (app.view as HTMLCanvasElement).getBoundingClientRect()
-      // screen coords -> canvas-relative pixel coords
       const mouseX = pos.x - (window.screenX + rect.left)
       const mouseY = pos.y - (window.screenY + rect.top)
       model.focus(mouseX, mouseY)

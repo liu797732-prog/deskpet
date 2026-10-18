@@ -1,7 +1,7 @@
 {
   "name": "qqpet",
   "version": "1.0.0",
-  "description": "",
+  "description": "Desktop pet based on Live2D",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -12,8 +12,21 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "build": {
+    "appId": "com.deskpet.app",
+    "productName": "DeskPet",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DeskPet"
+    }
+  },
   "dependencies": {
-    "electron": "^44.8.0",
     "electron-store": "^12.0.0",
     "live2dcubismcore": "^1.0.2",
     "pixi-live2d-display": "^0.4.0",
@@ -22,6 +35,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "^44.8.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
     "typescript": "^7.0.2",

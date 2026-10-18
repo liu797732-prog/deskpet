@@ -9,6 +9,20 @@ const store = new Store<{
   launchAtLogin?: boolean
 }>()
 
+// 单实例锁：防止多开
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // 有人试图启动第二个实例，聚焦到已有窗口
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 let mainWindow: BrowserWindow | null = null
 let statusWindow: BrowserWindow | null = null
 
@@ -31,6 +45,8 @@ function createStatusWindow() {
       nodeIntegration: false
     }
   })
+  // 和主窗口同一置顶层级
+  statusWindow.setAlwaysOnTop(true, 'screen-saver')
   statusWindow.setIgnoreMouseEvents(false, { forward: true })
 
   // 跟随主窗口位置
@@ -40,8 +56,12 @@ function createStatusWindow() {
     statusWindow.setPosition(x + w + 6, y + 10)
   }
 
-  // 加载状态栏页面
+  // 加载状态栏页面，加载完再显示
   const url = process.env.ELECTRON_RENDERER_URL
+  statusWindow.webContents.once('did-finish-load', () => {
+    statusWindow?.showInactive()
+    updateStatusPos()
+  })
   if (url) {
     statusWindow.loadURL(url + '#/status')
   } else {
@@ -53,15 +73,11 @@ function createStatusWindow() {
 function updateStatusPos() {
   if (!statusWindow || !mainWindow) return
   const [x, y] = mainWindow.getPosition()
-  const [w, h] = mainWindow.getSize()
-  // 默认在右边，太靠左就放左边
-  const mainX = x
+  const [w] = mainWindow.getSize()
   const screenWidth = screen.getPrimaryDisplay().workAreaSize.width
-  if (mainX > screenWidth - 200) {
-    // 太靠右，放左边
+  if (x > screenWidth - 200) {
     statusWindow.setPosition(x - 96, y + 10)
   } else {
-    // 默认放右边
     statusWindow.setPosition(x + w + 6, y + 10)
   }
 }
@@ -102,6 +118,7 @@ function createWindow() {
   })
 
   mainWindow.setIgnoreMouseEvents(false, { forward: true })
+  mainWindow.setAlwaysOnTop(onTop, 'screen-saver')
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
@@ -115,19 +132,11 @@ function createWindow() {
     { type: 'separator' },
     {
       label: '显示状态栏',
+      id: 'toggle-status',
       type: 'checkbox',
       checked: false,
       click: (item) => {
         mainWindow?.webContents.send('pet:menu-action', 'toggle-status')
-      }
-    },
-    {
-      label: '置顶',
-      type: 'checkbox',
-      checked: onTop,
-      click: (item) => {
-        mainWindow?.setAlwaysOnTop(item.checked)
-        store.set('alwaysOnTop', item.checked)
       }
     },
     { type: 'separator' },
@@ -153,17 +162,26 @@ function createWindow() {
     mainWindow?.setPosition(Math.round(x), Math.round(y))
     store.set('windowPosition', { x: Math.round(x), y: Math.round(y) })
     updateStatusPos()
+    // 状态栏也提到最前，保持同层级
+    if (statusWindow && !statusWindow.isDestroyed()) {
+      statusWindow.setAlwaysOnTop(true, 'screen-saver')
+    }
   })
 
   // 控制状态栏显示/隐藏
   ipcMain.on('pet:toggle-status', (_e, show: boolean) => {
     if (show) {
-      createStatusWindow()
-      statusWindow?.showInactive()
+      if (!statusWindow) {
+        createStatusWindow()
+      } else {
+        statusWindow.showInactive()
+      }
       updateStatusPos()
     } else {
       statusWindow?.hide()
     }
+    const menuItem = contextMenu.getMenuItemById('toggle-status')
+    if (menuItem) menuItem.checked = show
   })
 
   // 数值更新推送到状态栏
@@ -211,6 +229,8 @@ app.whenReady().then(() => {
   app.on('before-quit', () => {
     clearInterval(cursorTimer)
     statusMonitor.stop()
+    statusWindow?.destroy()
+    statusWindow = null
   })
 
   app.on('activate', () => {
