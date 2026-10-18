@@ -10,11 +10,70 @@ const store = new Store<{
 }>()
 
 let mainWindow: BrowserWindow | null = null
+let statusWindow: BrowserWindow | null = null
+
+// 创建状态栏小窗口
+function createStatusWindow() {
+  if (statusWindow) return
+  statusWindow = new BrowserWindow({
+    width: 90,
+    height: 100,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    hasShadow: false,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  statusWindow.setIgnoreMouseEvents(false, { forward: true })
+
+  // 跟随主窗口位置
+  if (mainWindow) {
+    const [x, y] = mainWindow.getPosition()
+    const [w] = mainWindow.getSize()
+    statusWindow.setPosition(x + w + 6, y + 10)
+  }
+
+  // 加载状态栏页面
+  const url = process.env.ELECTRON_RENDERER_URL
+  if (url) {
+    statusWindow.loadURL(url + '#/status')
+  } else {
+    statusWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'status' })
+  }
+}
+
+// 更新状态栏位置（跟随主窗口）
+function updateStatusPos() {
+  if (!statusWindow || !mainWindow) return
+  const [x, y] = mainWindow.getPosition()
+  const [w, h] = mainWindow.getSize()
+  // 默认在右边，太靠左就放左边
+  const mainX = x
+  const screenWidth = screen.getPrimaryDisplay().workAreaSize.width
+  if (mainX > screenWidth - 200) {
+    // 太靠右，放左边
+    statusWindow.setPosition(x - 96, y + 10)
+  } else {
+    // 默认放右边
+    statusWindow.setPosition(x + w + 6, y + 10)
+  }
+}
+
+// 同步数值到状态栏窗口
+function syncStatsToWindow(stats: any) {
+  statusWindow?.webContents.send('pet:stats-update', stats)
+}
 
 // 同步开机自启设置到系统
 function applyLaunchAtLogin(enabled: boolean) {
   app.setLoginItemSettings({ openAtLogin: enabled })
-  console.log('[Store] launch at login:', enabled)
 }
 
 function createWindow() {
@@ -23,13 +82,12 @@ function createWindow() {
 
   const savedPos = store.get('windowPosition')
   const onTop = store.get('alwaysOnTop', true)
-  console.log('[Store] loaded position:', savedPos, 'alwaysOnTop:', onTop)
 
   mainWindow = new BrowserWindow({
-    width: 300,
-    height: 400,
-    x: savedPos?.x ?? workAreaSize.width - 340,
-    y: savedPos?.y ?? workAreaSize.height - 440,
+    width: 110,
+    height: 133,
+    x: savedPos?.x ?? workAreaSize.width - 150,
+    y: savedPos?.y ?? workAreaSize.height - 187,
     frame: false,
     transparent: true,
     alwaysOnTop: onTop,
@@ -90,10 +148,27 @@ function createWindow() {
     contextMenu.popup()
   })
 
-  // 拖拽窗口：直接把鼠标屏幕坐标发给主进程定位
+  // 拖拽窗口
   ipcMain.on('pet:drag-move-to', (_e, x: number, y: number) => {
     mainWindow?.setPosition(Math.round(x), Math.round(y))
     store.set('windowPosition', { x: Math.round(x), y: Math.round(y) })
+    updateStatusPos()
+  })
+
+  // 控制状态栏显示/隐藏
+  ipcMain.on('pet:toggle-status', (_e, show: boolean) => {
+    if (show) {
+      createStatusWindow()
+      statusWindow?.showInactive()
+      updateStatusPos()
+    } else {
+      statusWindow?.hide()
+    }
+  })
+
+  // 数值更新推送到状态栏
+  ipcMain.on('pet:stats-update', (_e, stats: any) => {
+    syncStatsToWindow(stats)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -123,7 +198,7 @@ app.whenReady().then(() => {
   // 全局鼠标位置轮询：100ms 查一次，位置变化才推送
   let lastX = -1
   let lastY = -1
-  setInterval(() => {
+  const cursorTimer = setInterval(() => {
     const pt = screen.getCursorScreenPoint()
     if (pt.x !== lastX || pt.y !== lastY) {
       lastX = pt.x
@@ -131,6 +206,12 @@ app.whenReady().then(() => {
       mainWindow?.webContents.send('pet:cursor-pos', { x: pt.x, y: pt.y })
     }
   }, 100)
+
+  // 退出前清理所有定时器，避免访问已销毁对象
+  app.on('before-quit', () => {
+    clearInterval(cursorTimer)
+    statusMonitor.stop()
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

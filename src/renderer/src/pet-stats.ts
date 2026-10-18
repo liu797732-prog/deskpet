@@ -53,7 +53,6 @@ function tick() {
   const newLevel = Math.floor(petStats.exp / 600) + 1
   if (newLevel > petStats.level) {
     petStats.level = newLevel
-    console.log('Level up!', petStats.level)
   }
 }
 
@@ -72,9 +71,4 @@ export function bath() {
   petStats.clean = clamp(petStats.clean + 40)
   petStats.mood = clamp(petStats.mood + 10)
   petStats.exp += 10
-}
-
-export function pet() {
-  petStats.mood = clamp(petStats.mood + 3)
-  petStats.exp += 5
 }

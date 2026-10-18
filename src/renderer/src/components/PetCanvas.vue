@@ -82,8 +82,8 @@ onMounted(async () => {
 
   try {
     app = new PIXI.Application({
-      width: 300,
-      height: 400,
+      width: 110,
+      height: 133,
       backgroundAlpha: 0,
       antialias: true,
       autoStart: true,
@@ -91,7 +91,7 @@ onMounted(async () => {
     })
 
     containerRef.value.appendChild(app.view as HTMLCanvasElement)
-    model = await Live2DModel.from('/models/hiyori/Hiyori.model3.json')
+    model = await Live2DModel.from('/models/knight/Knight/knight.model3.json')
 
     const scale = Math.max(
       app.screen.width / model.width,
@@ -102,7 +102,6 @@ onMounted(async () => {
     model.y = app.screen.height - model.height
 
     app.stage.addChild(model)
-    console.log('Live2D model loaded, scale:', scale)
 
     // 监听主进程推送的全局鼠标位置
     ;(window as any).petAPI?.onCursorPos((pos: { x: number; y: number }) => {
