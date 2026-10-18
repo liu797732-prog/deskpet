@@ -2,6 +2,7 @@ import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 import { statusMonitor, StateChangeEvent, MilestoneEvent } from './status-monitor'
+import { petState, type PetStatAction } from './pet-state'
 
 const store = new Store<{
   windowPosition?: { x: number; y: number }
@@ -61,6 +62,8 @@ function createStatusWindow() {
   statusWindow.webContents.once('did-finish-load', () => {
     statusWindow?.showInactive()
     updateStatusPos()
+    // 立即同步一次当前数值，避免状态栏短暂显示默认值
+    statusWindow?.webContents.send('pet:stats-changed', petState.get())
   })
   if (url) {
     statusWindow.loadURL(url + '#/status')
@@ -80,11 +83,6 @@ function updateStatusPos() {
   } else {
     statusWindow.setPosition(x + w + 6, y + 10)
   }
-}
-
-// 同步数值到状态栏窗口
-function syncStatsToWindow(stats: any) {
-  statusWindow?.webContents.send('pet:stats-update', stats)
 }
 
 // 同步开机自启设置到系统
@@ -184,9 +182,18 @@ function createWindow() {
     if (menuItem) menuItem.checked = show
   })
 
-  // 数值更新推送到状态栏
-  ipcMain.on('pet:stats-update', (_e, stats: any) => {
-    syncStatsToWindow(stats)
+  // 数值状态机：唯一事实来源在主进程，渲染层只读/发动作
+  ipcMain.handle('pet:stats:get', () => petState.get())
+  ipcMain.handle('pet:stats:action', (_e, action: string) => {
+    const allowed: PetStatAction[] = ['feed', 'bath', 'pet']
+    if (!allowed.includes(action as PetStatAction)) return petState.get()
+    return petState.action(action as PetStatAction)
+  })
+
+  // 数值变化推送（主窗口 + 状态栏窗口）
+  petState.on('changed', (stats) => {
+    mainWindow?.webContents.send('pet:stats-changed', stats)
+    statusWindow?.webContents.send('pet:stats-changed', stats)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -199,6 +206,7 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow()
   statusMonitor.start()
+  petState.start()
 
   // 恢复开机自启设置
   applyLaunchAtLogin(store.get('launchAtLogin', false))
@@ -229,6 +237,7 @@ app.whenReady().then(() => {
   app.on('before-quit', () => {
     clearInterval(cursorTimer)
     statusMonitor.stop()
+    petState.stop() // 最后一次落盘
     statusWindow?.destroy()
     statusWindow = null
   })

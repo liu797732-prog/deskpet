@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import PetCanvas from './components/PetCanvas.vue'
-import { petStats, startStats, feed, bath } from './pet-stats'
+import { petStats, startStats, feed, bath, pet } from './pet-stats'
 
 const bubbleText = ref('')
 const showStatus = ref(false)
@@ -28,16 +28,7 @@ setInterval(() => {
       ;(window as any).petAPI?.toggleStatus(low)
     }
   }
-  // 同步数值到状态栏窗口
-  if (showStatus.value) {
-    ;(window as any).petAPI?.syncStats({
-      hunger: Math.round(petStats.hunger),
-      mood: Math.round(petStats.mood),
-      clean: Math.round(petStats.clean),
-      level: petStats.level,
-      expPercent: Math.round((petStats.exp % 600) / 600 * 100)
-    })
-  }
+  // 数值同步到状态栏由主进程直推（pet:stats-changed），这里不再中转
 }, 2000)
 
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null
@@ -110,8 +101,8 @@ const bodyReactions = [
 function onPetClick(area: string = 'body') {
   const lines = area === 'head' ? headReactions : bodyReactions
   showBubble(pickRandom(lines), 2500)
-  petStats.mood = Math.min(100, petStats.mood + 3)
-  petStats.exp += 5
+  // 摸摸加成由主进程结算，渲染层不再直接改数值
+  pet()
 }
 
 onMounted(() => {

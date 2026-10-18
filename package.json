@@ -15,6 +15,18 @@
   "build": {
     "appId": "com.deskpet.app",
     "productName": "DeskPet",
+    "files": [
+      "out/**",
+      "package.json",
+      "!**/*.map"
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
     "win": {
       "target": "nsis"
     },
@@ -27,18 +39,18 @@
     }
   },
   "dependencies": {
-    "electron-store": "^12.0.0",
-    "live2dcubismcore": "^1.0.2",
-    "pixi-live2d-display": "^0.4.0",
-    "pixi.js": "^6.5.10",
-    "vue": "^3.5.44"
+    "electron-store": "^12.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
     "electron": "^44.8.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "live2dcubismcore": "^1.0.2",
+    "pixi-live2d-display": "^0.4.0",
+    "pixi.js": "^6.5.10",
     "typescript": "^7.0.2",
+    "vue": "^3.5.44",
     "vue-tsc": "^3.3.13"
   }
 }

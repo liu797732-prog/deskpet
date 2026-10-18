@@ -23,19 +23,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
-const stats = ref({
-  hunger: 80,
-  mood: 80,
-  clean: 90,
-  level: 1,
-  expPercent: 0
-})
+const raw = ref({ hunger: 80, mood: 80, clean: 90, level: 1, exp: 0 })
+
+// exp 每级 600（与主进程一致），百分比本地换算
+const stats = computed(() => ({
+  hunger: Math.round(raw.value.hunger),
+  mood: Math.round(raw.value.mood),
+  clean: Math.round(raw.value.clean),
+  level: raw.value.level,
+  expPercent: Math.round(((raw.value.exp % 600) / 600) * 100)
+}))
 
 onMounted(() => {
-  ;(window as any).petAPI?.onStatsUpdate((data: any) => {
-    stats.value = data
+  ;(window as any).petAPI?.onStatsChanged?.((data: any) => {
+    if (data) raw.value = data
   })
 })
 </script>
