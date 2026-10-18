@@ -7,6 +7,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:win": "electron-vite build && electron-builder --win",
+    "build:mac": "electron-vite build && electron-builder --mac",
     "preview": "electron-vite preview"
   },
   "keywords": [],
@@ -29,6 +30,14 @@
     },
     "win": {
       "target": "nsis"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "category": "public.app-category.entertainment",
+      "identity": null
     },
     "nsis": {
       "oneClick": false,
